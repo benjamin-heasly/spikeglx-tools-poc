@@ -53,7 +53,7 @@ Here's some example output from `PlotSpikeGlxRecordingSummary`.
 
 ## Metadata
 
-This paragraph of interpreted, formatted medata data describes recordings with a National Instruments card.
+This paragraph of interpreted, formatted medata describes recordings with a National Instruments card.
 
 ```
 nidq PCIe-6321: rec_g3_t0.nidq.bin
@@ -113,9 +113,9 @@ Here's a detail of 10 seconds of the same recording, where the sync pulse and ot
 
 # Data
 
-To work through these examples, I used sample neuropixels data shared by Agrita Dubey and Bijan Pesaran of the [Pesaran lab at UPenn](https://pesaranlab.org/) -- thanks!
+To work through this example I used SpikeGLX data recorded and shared by Agrita Dubey and Bijan Pesaran of the [Pesaran lab at UPenn](https://pesaranlab.org/) -- thanks!
 
-The data are not publicly available.  For personal reference, I parked the data in a cloud storage bucket and pulled it down locally with
+The data are not publicly available.  For personal reference, I parked the data files in a cloud storage bucket and pulled it down locally with
 
 ```
 gsutil cp -r gs://tripledip-pesaran-lab-data/spikeglx_data/rec_g3 /home/ninjaben/Desktop/codin/gold-lab/spikeglx_data

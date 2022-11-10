@@ -9,9 +9,11 @@ This stuff might turn into useful tools for the [Gold lab at Upenn](https://www.
 
 ## SpikeGLX_Datafile_Tools
 
-The folder `SpikeGLX_Datafile_Tools/` contains Matlab code from the SpikeGLX downloads page, specifically [Post-processing Tools](https://billkarsh.github.io/SpikeGLX/#post-processing-tools) (accessed 2022-11-07).  `DemoReadSGLXData.m` is included verbatim for reference.  Other m-files in this folder are subfunctions from `DemoReadSGLXData.m`, copy-pasted into ther own files so they can be reused.
+The folder `SpikeGLX_Datafile_Tools/` contains Matlab code from the SpikeGLX downloads page, specifically [Post-processing Tools](https://billkarsh.github.io/SpikeGLX/#post-processing-tools) (accessed 2022-11-07).
 
-Once minor exception: I modified [`ExtractDigital.m`](https://github.com/benjamin-heasly/spikeglx-tools-poc/blob/main/SpikeGLX_Datafile_Tools/ExtractDigital.m#L10) to return an extra value.  This exposes the file-wide channel index of a digital signal, which is calulated witihn this function, for reuse by the caller.
+`DemoReadSGLXData.m` from that download is included verbatim for reference.  Other m-files in the same folder are subfunctions from `DemoReadSGLXData.m`, copy-pasted into ther own files so they can be reused.
+
+One minor exception: I modified the [`ExtractDigital.m`](https://github.com/benjamin-heasly/spikeglx-tools-poc/blob/main/SpikeGLX_Datafile_Tools/ExtractDigital.m#L10) function to return an extra value.  This exposes the file-wide channel index of a digital signal, which is calulated witihn this function, for reuse by the caller.
 
 ## Proof of concept code
 

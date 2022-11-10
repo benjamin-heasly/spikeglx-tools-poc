@@ -43,9 +43,9 @@ I wrote one other new utility, `ReadBinBen.m`.  This is similar to `ReadBin.m` f
 
 The difference is that `ReadBin` returns all the sample values, where as `ReadBinBen` returns only a subset.  This is because SpikeGLX produces a lot of data (15GB in the 309 second example below) and naively reading all this into memory in Matlab caused Matlab to crash and/or render figures impractically slowly.
 
-What subset of samples does `ReadBinBen` return?  It loads the binary file in chunks of fixed size, say 100 samples at a time, and for each chunk it returns just the min sample and the max sample of each channel.  Along with these it returns the sample indexes where the min and max occured.  Obviously, most of the samples are dropped this way!  But this allows each full recording to be loaded and plotted with little change to the overall envelope of the waveforms, at least WRT to producing summary figures.
+What subset of samples does `ReadBinBen` return?  It loads the binary file in chunks of fixed size, say 100 samples at a time, and for each chunk it returns just the min sample and the max sample of each channel.  Along with these it returns the file-wide sample indexes where the min and max occured.  Obviously, most of the samples are dropped this way!  But this allows each full recording to be loaded and plotted with little change to the overall envelope of the waveforms, at least WRT to producing summary figures.
 
-Why min and max?  Min and max have property of being actual, raw sample values from the binary data.  This enables downstream processing by SpikeGLX_Datafile_Tools utilities that make assumptions about possible values or their encodings (for example, extracting digital words).  Other summary stats, like mean, lack this property.  Median would also have this property, but it's slower to compute.
+Why min and max?  Min and max have the property of being actual, raw sample values from the binary data.  This enables downstream processing by SpikeGLX_Datafile_Tools utilities that make assumptions about possible values or their encodings (for example, when extracting digital words).  Other summary stats, like mean, lack this property.  Median would also have this property, but it's slower to compute.
 
 # Examples
 

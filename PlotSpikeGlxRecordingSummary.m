@@ -1,98 +1,114 @@
-% Let's see if I can make sense of a data dir from SpikeGLX.
-% I created other functions in this folder based on DemoReadSGLXData.m
-% I added some interpretation from the SpikeGLX docs.
-% https://billkarsh.github.io/SpikeGLX/Sgl_help/UserManual.html
-% https://billkarsh.github.io/SpikeGLX/Sgl_help/Metadata_30.html
-function TryReadSGLXData()
+% Find SpikeGLX .bin files in a recording directory.
+% Read each one and:
+%   - print metadata to describe what's in the file
+%   - plot the sync waveform
+%   - plot any National Instruments analog data
+%   - plot any Imec action potential data
+%   - plot any Imec local field potential data
+%
+% This is a proof of concept based on the SpikeGLX DemoReadSGLXData.m.
+% BSH added interpretation from the SpikeGLX docs:
+%  - https://billkarsh.github.io/SpikeGLX/Sgl_help/UserManual.html
+%  - https://billkarsh.github.io/SpikeGLX/Sgl_help/Metadata_30.html
+function PlotSpikeGlxRecordingSummary(recDir, startTime, duration)
 
-recDir = '/home/ninjaben/Desktop/codin/gold-lab/spikeglx_data/rec_g3';
-binNames = { ...
-    fullfile(recDir, 'rec_g3_t0.nidq.bin'), ...
-    fullfile(recDir, 'rec_g3_imec0', 'rec_g3_t0.imec0.ap.bin'), ...
-    fullfile(recDir, 'rec_g3_imec0', 'rec_g3_t0.imec0.lf.bin'), ...
-    fullfile(recDir, 'rec_g3_imec1', 'rec_g3_t0.imec1.ap.bin'), ...
-    fullfile(recDir, 'rec_g3_imec1', 'rec_g3_t0.imec1.lf.bin'), ...
-    };
-nFiles =   numel(binNames);
+if nargin < 1 || isempty(recDir)
+    recDir = pwd();
+end
 
-clf();
+if nargin < 2 || isempty(startTime)
+    startTime = 0;
+end
+
+if nargin < 3 || isempty(duration)
+    duration = 30;
+end
+
+fprintf('Searching for .bin files in %s\n', recDir);
+
+binFiles = dir(fullfile(recDir, '**/*.bin'));
+nFiles = numel(binFiles);
+
+fprintf('Found %d .bin files.\n', nFiles);
+if nFiles < 1
+    return;
+end
+
+fprintf('Plotting %.2f seconds of data starting at %.2f, for each file.\n', duration, startTime);
+
+figure();
 legendNames = cell(1, nFiles);
 plotColors = lines(nFiles);
-
-startTime = 100;
-duration = 5;
 for ii = 1:nFiles
+    binPath = binFiles(ii).folder;
+    binName = binFiles(ii).name;
+    fprintf('\nReading .meta and .bin for %s\n', binName);
+    meta = ReadMeta(binName, binPath);
+
     markerSize = 3*(1 + nFiles - ii);
     markerColor = plotColors(ii, :);
+    legendNames{ii} = binName;
+    endTime = startTime;
 
-    [binPath, name, ext] = fileparts(binNames{ii});
-    binName = [name ext];
-    meta = ReadMeta(binName, binPath);
     if strcmp(meta.typeThis, 'nidq')
-        describeNI(meta, binName);
-        [dataArray, sampleTimes] = readDataNI(meta, binName, binPath, startTime, duration);
-        [syncWave, syncTimes] = extractSyncNI(meta, dataArray, sampleTimes);
+        DescribeNI(meta, binName);
+        [dataArray, sampleTimes] = ReadDataNI(meta, binName, binPath, startTime, duration);
+        endTime = max(endTime, max(sampleTimes(:)));
 
-        [analogWaves, analogTimes] = extractAnalogNI(meta, dataArray, sampleTimes);
+        [syncWave, syncTimes] = ExtractSyncNI(meta, dataArray, sampleTimes);
+        [analogWaves, analogTimes] = ExtractAnalogNI(meta, dataArray, sampleTimes);
+
         subplot(4, 1, 2);
         hold on
-        plot(analogTimes', analogWaves', ...
-            '.', 'MarkerSize', markerSize, ...
-            'Color', markerColor);
-
+        plot(analogTimes', analogWaves', '.', 'MarkerSize', markerSize, 'Color', markerColor);
     else
-        describeIM(meta, binName);
-        [dataArray, sampleTimes] = readDataIM(meta, binName, binPath, startTime, duration);
-        [syncWave, syncTimes] = extractSyncIM(meta, dataArray, sampleTimes);
+        DescribeIM(meta, binName);
+        [dataArray, sampleTimes] = ReadDataIM(meta, binName, binPath, startTime, duration);
+        endTime = max(endTime, max(sampleTimes(:)));
 
-        [apWaves, apTimes] = extractApIM(meta, dataArray, sampleTimes);
+        [syncWave, syncTimes] = ExtractSyncIM(meta, dataArray, sampleTimes);
+        [apWaves, apTimes] = ExtractApIM(meta, dataArray, sampleTimes);
+        [lfWaves, lfTimes] = ExtractLfIM(meta, dataArray, sampleTimes);
+
         subplot(4, 1, 3);
         hold on
-        plot(apTimes', apWaves', ...
-            '.', 'MarkerSize', markerSize, ...
-            'Color', markerColor);
-
-        [lfWaves, lfTimes] = extractLfIM(meta, dataArray, sampleTimes);
+        plot(apTimes', apWaves', '.', 'MarkerSize', markerSize, 'Color', markerColor);
         subplot(4, 1, 4);
         hold on
-        plot(lfTimes', lfWaves', ...
-            '.', 'MarkerSize', markerSize, ...
-            'Color', markerColor);
+        plot(lfTimes', lfWaves', '.', 'MarkerSize', markerSize, 'Color', markerColor);
     end
 
     subplot(4, 1, 1);
     hold on
-    plot(syncTimes', syncWave', ...
-        '.', 'MarkerSize', markerSize, ...
-        'Color', markerColor);
-    legendNames{ii} = binName;
+    plot(syncTimes', syncWave', '.', 'MarkerSize', markerSize, 'Color', markerColor);
 end
 
 subplot(4, 1, 1);
 legend(legendNames, "Location", "best")
 set(gca, 'XGrid', 'on')
-xlim(gca, [startTime, startTime + duration])
+xlim(gca, [startTime, endTime])
 ylabel('sync V or bool')
 
 subplot(4, 1, 2);
 set(gca, 'XGrid', 'on')
-xlim(gca, [startTime, startTime + duration])
-ylabel('NI analog V')
+xlim(gca, [startTime, endTime])
+ylabel('ni analog V')
 
 subplot(4, 1, 3);
 set(gca, 'XGrid', 'on')
-xlim(gca, [startTime, startTime + duration])
-ylabel('IM ap V')
+xlim(gca, [startTime, endTime])
+ylabel('im ap V')
 
 subplot(4, 1, 4);
 set(gca, 'XGrid', 'on')
-xlim(gca, [startTime, startTime + duration])
-ylabel('IM lf V')
+xlim(gca, [startTime, endTime])
+ylabel('im lf V')
 
 xlabel('sample time (s)')
 
 
-function describeNI(meta, binName)
+% Print a summary of a National Instruments data file.
+function DescribeNI(meta, binName)
 fprintf('\n');
 fprintf('%s %s: %s\n', meta.typeThis, meta.niDev1ProductName, binName);
 
@@ -141,7 +157,8 @@ fprintf('First sample: %d\n', str2double(meta.firstSample));
 fprintf('User notes: %s\n', meta.userNotes);
 
 
-function describeIM(meta, binName)
+% Print a summary of an Imec data file.
+function DescribeIM(meta, binName)
 fprintf('\n');
 fprintf('%s probe %s (serial %s): %s\n', ...
     meta.typeThis, meta.imDatPrb_pn, meta.imDatPrb_sn, binName);
@@ -182,14 +199,14 @@ fprintf('First sample: %d\n', str2double(meta.firstSample));
 fprintf('User notes: %s\n', meta.userNotes);
 
 
-function [dataArray, sampleTimes] = readDataNI(meta, binName, binPath, startTime, duration)
+% Read raw data from all channels of a National Instruments data file.
+function [dataArray, sampleTimes] = ReadDataNI(meta, binName, binPath, startTime, duration)
 if nargin < 4 || isempty(startTime)
     startTime = 0;
 end
-if nargin < 5 || isempty(duration)
+if nargin < 5 || isempty(duration) || ~isfinite(duration)
     duration = str2double(meta.fileTimeSecs) - startTime;
 end
-
 sampleRate = str2double(meta.niSampRate);
 samp0 = floor(startTime * sampleRate);
 nSamp = ceil(duration * sampleRate);
@@ -197,7 +214,8 @@ nSamp = ceil(duration * sampleRate);
 sampleTimes = startTime + (dataIndices / sampleRate);
 
 
-function [syncWave, syncTimes] = extractSyncNI(meta, dataArray, sampleTimes)
+% Parse out the sync wave from National Instruments data.
+function [syncWave, syncTimes] = ExtractSyncNI(meta, dataArray, sampleTimes)
 syncNiChan = str2double(meta.syncNiChan) + 1;
 syncNiChanType = str2double(meta.syncNiChanType);
 if syncNiChanType == 0
@@ -211,7 +229,8 @@ else
 end
 
 
-function [analogWaves, analogTimes] = extractAnalogNI(meta, dataArray, sampleTimes)
+% Parse out gain-corrected voltages from National Instruments analog data.
+function [analogWaves, analogTimes] = ExtractAnalogNI(meta, dataArray, sampleTimes)
 [MN,MA,XA] = ChannelCountsNI(meta);
 analogChannelOffset = MN + MA;
 analogChannels = analogChannelOffset + (1:XA);
@@ -226,14 +245,14 @@ analogWaves = dataArray(analogChannels, :);
 analogTimes = sampleTimes(analogChannels, :);
 
 
-function [dataArray, sampleTimes] = readDataIM(meta, binName, binPath, startTime, duration)
+% Read raw data from all channels of an Imec data file.
+function [dataArray, sampleTimes] = ReadDataIM(meta, binName, binPath, startTime, duration)
 if nargin < 4 || isempty(startTime)
     startTime = 0;
 end
-if nargin < 5 || isempty(duration)
+if nargin < 5 || isempty(duration) || ~isfinite(duration)
     duration = str2double(meta.fileTimeSecs) - startTime;
 end
-
 sampleRate = str2double(meta.imSampRate);
 samp0 = floor(startTime * sampleRate);
 nSamp = ceil(duration * sampleRate);
@@ -241,14 +260,16 @@ nSamp = ceil(duration * sampleRate);
 sampleTimes = startTime + (dataIndices / sampleRate);
 
 
-function [syncWave, syncTimes] = extractSyncIM(meta, dataArray, sampleTimes)
+% Parse out the sync wave from Imec data.
+function [syncWave, syncTimes] = ExtractSyncIM(meta, dataArray, sampleTimes)
 digitalWord = 1;
 syncChan = 6;
 [syncWave, syncChannel] = ExtractDigital(dataArray, meta, digitalWord, syncChan);
 syncTimes = sampleTimes(syncChannel, :);
 
 
-function [apWaves, apTimes] = extractApIM(meta, dataArray, sampleTimes)
+% Parse out gain-corrected voltages from Imec action potential data.
+function [apWaves, apTimes] = ExtractApIM(meta, dataArray, sampleTimes)
 [AP] = ChannelCountsIM(meta);
 apChannels = 1:AP;
 dataArray = GainCorrectIM(dataArray, apChannels, meta);
@@ -256,11 +277,11 @@ apWaves = dataArray(apChannels, :);
 apTimes = sampleTimes(apChannels, :);
 
 
-function [lfWaves, lfTimes] = extractLfIM(meta, dataArray, sampleTimes)
+% Parse out gain-corrected voltages from Imec local field data.
+function [lfWaves, lfTimes] = ExtractLfIM(meta, dataArray, sampleTimes)
 [AP, LF] = ChannelCountsIM(meta);
 lfChannelOffset = AP;
 lfChannels = lfChannelOffset + (1:LF);
 dataArray = GainCorrectIM(dataArray, lfChannels, meta);
 lfWaves = dataArray(lfChannels, :);
 lfTimes = sampleTimes(lfChannels, :);
-

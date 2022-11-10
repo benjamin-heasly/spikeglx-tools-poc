@@ -7,7 +7,7 @@ This repo contains proof of concept code for getting started with [SpikeGLX](htt
 
 ## SpikeGLX_Datafile_Tools
 
-The folder `SpikeGLX_Datafile_Tools/` contains Matlab code from the SpikeGLX downloads page, specifically [Post-processing Tools](https://billkarsh.github.io/SpikeGLX/#post-processing-tools).  `DemoReadSGLXData.m` is included verbatim for reference.  Other m-files in this folder are subfunctions from `DemoReadSGLXData.m`, copy-pasted into ther own files so they can be reused.
+The folder `SpikeGLX_Datafile_Tools/` contains Matlab code from the SpikeGLX downloads page, specifically [Post-processing Tools](https://billkarsh.github.io/SpikeGLX/#post-processing-tools) (accessed 2022-11-07).  `DemoReadSGLXData.m` is included verbatim for reference.  Other m-files in this folder are subfunctions from `DemoReadSGLXData.m`, copy-pasted into ther own files so they can be reused.
 
 Once minor exception: I modified [`ExtractDigital.m`](https://github.com/benjamin-heasly/spikeglx-tools-poc/blob/main/SpikeGLX_Datafile_Tools/ExtractDigital.m#L10) to return an extra value.  This exposes the file-wide channel index of a digital signal, which is calulated witihn this function, for reuse by the caller.
 
@@ -88,3 +88,27 @@ A detail of 10 seconds of the same recording:
 
 
 ### ReadBinBen
+
+I wrote one other new utility, `ReadBinBen.m`.  This is similar to `ReadBin.m` from the original SpikeGLX_Datafile_Tools.  It opens a SpikeGLX `.bin` data file and reads in the packed 16-bit integer samples as Matlab doubles.
+
+The difference is that `ReadBin` returns all the sample values, where as `ReadBinBen` returns only a subset.  This is because SpikeGLX produces a lot of data (15GB in the 309 second example aboce) and naively reading all this into memory in Matlab caused Matlab to crash and/or render figures impractically slowly.
+
+What subset of samples does `ReadBinBen` return?  It loads the binary file in chunks of fixed size, say 100 samples at a time, and for each chunk it returns just the min sample and the max sample of each channel.  Along with these it returns the sample indexes where the min and max occured.  Obviously, most of the samples are dropped this way!  But this allows each full recording to be loaded and plotted with little change to the overall envelope of the waveforms, at least WRT to producing summary figures.
+
+Why min and max?  Min and max have property of being actual, raw sample values from the binary data.  This enables downstream processing by SpikeGLX_Datafile_Tools utilities that make assumptions about possible values or their encodings (for example, extracting digital words).  Other summary stats, like mean, lack this property.  Median would also have this property, but it's slower to compute.
+
+## Data
+
+To work through these examples, I used sample neuropixels data shared by Agrita Dubey and Bijan Pesaran of the [Pesaran lab at UPenn](https://pesaranlab.org/) -- thanks!
+
+The data are not publicly available.  For personal reference, I parked the data in a cloud storage bucket and pulled it down locally with
+
+```
+gsutil cp -r gs://tripledip-pesaran-lab-data/spikeglx_data/rec_g3 /home/ninjaben/Desktop/codin/gold-lab/spikeglx_data
+```
+
+This required authentication with the Google APIs.
+```
+$ gcloud auth login
+$ gcloud config set project triple-dip
+```

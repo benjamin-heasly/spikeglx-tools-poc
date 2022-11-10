@@ -115,7 +115,7 @@ Here's a detail of 10 seconds of the same recording, where the sync pulse and ot
 
 To work through this example I used SpikeGLX data recorded and shared by Agrita Dubey and Bijan Pesaran of the [Pesaran lab at UPenn](https://pesaranlab.org/) -- thanks!
 
-The data are not publicly available.  For personal reference, I parked the data files in a cloud storage bucket and pulled it down locally with
+The data are not publicly available.  For personal reference, I parked the data files in a cloud storage bucket and pulled down selections locally with
 
 ```
 gsutil cp -r gs://tripledip-pesaran-lab-data/spikeglx_data/rec_g3 /home/ninjaben/Desktop/codin/gold-lab/spikeglx_data

@@ -1,7 +1,9 @@
 # spikeglx-tools-poc
 Getting started with SpikeGlx Matlab and command line tools.
 
-This repo contains proof of concept code for getting started with [SpikeGLX](https://billkarsh.github.io/SpikeGLX/) data files and associated Matlab and command line tools.  It might turn into some useful tools, or it might just be a stepping stone towards learning to work with SpikeGLX and similar data.
+This repo contains proof of concept code for getting started with [SpikeGLX](https://billkarsh.github.io/SpikeGLX/) data files and associated Matlab and command line tools.
+
+This stuff might turn into useful tools for the [Gold lab at Upenn](https://www.med.upenn.edu/goldlab/).  Or, it might turn out to be just a stepping stone towards learning to work with SpikeGLX and similar data.
 
 # What's here?
 
@@ -19,9 +21,37 @@ I wrote two new functions that use the SpikeGLX_Datafile_Tools, to help get my h
 
 `PlotSpikeGlxRecordingSummary.m` searches a given folder for SpikeGLX `.bin` data files.  This could be one of the raw data folders that SpikeGLX creates during recordings.
 
-For each binary file found it prints a summary of the associated metadata.  This includes things like which type of card captured the data (Imec or National Instruments), what channels were configured, and where a sync signal was being recorded.  The output here combines raw metadata recorded by SpikeGLX during recording, plus commentary and interpretation that I took from the SpikeGLX [User Manual](https://billkarsh.github.io/SpikeGLX/Sgl_help/UserManual.html) and [Metadata reference](https://billkarsh.github.io/SpikeGLX/Sgl_help/Metadata_30.html)
+For each binary file found it prints a summary of the associated metadata.  This includes things like which type of card captured the data (Imec or National Instruments), what channels were configured, and where a sync signal was being recorded.
 
-Here's some sample output for a National Instruments card.
+The output here combines raw metadata recorded by SpikeGLX during recording, plus commentary and interpretation that I took from the SpikeGLX [User Manual](https://billkarsh.github.io/SpikeGLX/Sgl_help/UserManual.html) and [Metadata reference](https://billkarsh.github.io/SpikeGLX/Sgl_help/Metadata_30.html)
+
+Even after interpretation and formatting, the metadata is still pretty dense, but it helped me undetstand how to read SpikeGLX metadata in general, and what was in my sample data files in particular.  With this understanding, I was able to generate some plots to summarize the data contents of the `.bin` files.
+
+For each `.bin` file, `PlotSpikeGlxRecordingSummary.m` identifies and plots:
+ - The 1Hz sync waveform (can be configured several ways)
+ - Any other analog waveforms from National Instruments cards
+ - Any Imec / Neuropixels action potential waveforms
+ - Any Imec / Neuropixels local field potential waveforms
+
+See example outputs of metadata and data plots, below.
+
+### ReadBinBen
+
+I wrote one other new utility, `ReadBinBen.m`.  This is similar to `ReadBin.m` from the original SpikeGLX_Datafile_Tools.  It opens a SpikeGLX `.bin` data file and reads in the packed 16-bit integer samples as Matlab doubles.
+
+The difference is that `ReadBin` returns all the sample values, where as `ReadBinBen` returns only a subset.  This is because SpikeGLX produces a lot of data (15GB in the 309 second example aboce) and naively reading all this into memory in Matlab caused Matlab to crash and/or render figures impractically slowly.
+
+What subset of samples does `ReadBinBen` return?  It loads the binary file in chunks of fixed size, say 100 samples at a time, and for each chunk it returns just the min sample and the max sample of each channel.  Along with these it returns the sample indexes where the min and max occured.  Obviously, most of the samples are dropped this way!  But this allows each full recording to be loaded and plotted with little change to the overall envelope of the waveforms, at least WRT to producing summary figures.
+
+Why min and max?  Min and max have property of being actual, raw sample values from the binary data.  This enables downstream processing by SpikeGLX_Datafile_Tools utilities that make assumptions about possible values or their encodings (for example, extracting digital words).  Other summary stats, like mean, lack this property.  Median would also have this property, but it's slower to compute.
+
+# Examples
+
+Here's some example output from `PlotSpikeGlxRecordingSummary`.
+
+## Metadata
+
+This paragraph of interpreted, formatted medata data describes recordings with a National Instruments card.
 
 ```
 nidq PCIe-6321: rec_g3_t0.nidq.bin
@@ -36,7 +66,7 @@ First sample: 80733231
 User notes: 
 ```
 
-For the action potential channels of an Imec Neuropixels probe.
+This paragraph describes the action potential recordings of an Imec Neuropixels probe.
 
 ```
 imec probe NP1010 (serial 19398203272): rec_g3_t0.imec0.ap.bin
@@ -52,7 +82,7 @@ First sample: 75687780
 User notes: 
 ```
 
-And for the local field potential channels of the same probe.
+And this paragraph describes local field potential recordings from the same Imec Neuropixels probe.
 
 ```
 imec probe NP1010 (serial 19398203272): rec_g3_t0.imec0.lf.bin
@@ -68,36 +98,18 @@ First sample: 6307315
 User notes: 
 ```
 
-This is all still pretty dense, but it helped me undetstand how to read SpikeGLX metadata in general, and what was in my sample data files in particular.  With this understanding, I was able to generate some plots to summarize the data contents of the `.bin` files.
+## Plots
 
-For each `.bin` file, `PlotSpikeGlxRecordingSummary.m` identifies and plots:
- - The 1Hz sync waveform (can be configured several ways)
- - Any other analog waveforms from National Instruments cards
- - Any Imec / Neuropixels action potential waveforms
- - Any Imec / Neuropixels local field potential waveforms
-
-Here's some sample output for a recording folder that represented about 309 seconds of recording with one National Instruments card and two Imec / Neuropixels probes.
-
-The full recording duration:
+Here are example plots from the same National Instruments card and Imec Neuropixels probe described above, plus one additional Imec Neuropixels probe.  Overall, the recording is about 309 seconds.
 
 ![Plot of full 309 seconds of recording](images/PlotSpikeGlxRecordingSummary-full.png)
 
-A detail of 10 seconds of the same recording:
+Here's a detail of 10 seconds of the same recording, where the sync pulse and other features are visible.
 
 ![Plot of 10 second excerpt from a longer](images/PlotSpikeGlxRecordingSummary-10s.png)
 
 
-### ReadBinBen
-
-I wrote one other new utility, `ReadBinBen.m`.  This is similar to `ReadBin.m` from the original SpikeGLX_Datafile_Tools.  It opens a SpikeGLX `.bin` data file and reads in the packed 16-bit integer samples as Matlab doubles.
-
-The difference is that `ReadBin` returns all the sample values, where as `ReadBinBen` returns only a subset.  This is because SpikeGLX produces a lot of data (15GB in the 309 second example aboce) and naively reading all this into memory in Matlab caused Matlab to crash and/or render figures impractically slowly.
-
-What subset of samples does `ReadBinBen` return?  It loads the binary file in chunks of fixed size, say 100 samples at a time, and for each chunk it returns just the min sample and the max sample of each channel.  Along with these it returns the sample indexes where the min and max occured.  Obviously, most of the samples are dropped this way!  But this allows each full recording to be loaded and plotted with little change to the overall envelope of the waveforms, at least WRT to producing summary figures.
-
-Why min and max?  Min and max have property of being actual, raw sample values from the binary data.  This enables downstream processing by SpikeGLX_Datafile_Tools utilities that make assumptions about possible values or their encodings (for example, extracting digital words).  Other summary stats, like mean, lack this property.  Median would also have this property, but it's slower to compute.
-
-## Data
+# Data
 
 To work through these examples, I used sample neuropixels data shared by Agrita Dubey and Bijan Pesaran of the [Pesaran lab at UPenn](https://pesaranlab.org/) -- thanks!
 

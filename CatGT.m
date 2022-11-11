@@ -1,46 +1,61 @@
-% Try calling CatGT and grabbing the output of CatGT.log.
-% file:///home/ninjaben/Desktop/codin/gold-lab/spikeglx-tools/CatGT-linux/ReadMe.html
+% Call CatGT with various arguments for file coordinates and operations.
+% Handle shell / command line integration.
+% Read results from the files produces.  These include:
+%  - The log file in the worling directory, CatGT.log
+%  - The "offsets" file that describes each input file's sample offset
+%  - The "fyi" file that describes other files written
 %
-% So how do I read a file path and pick the parameters for GatGT?
-% https://billkarsh.github.io/SpikeGLX/Sgl_help/UserManual.html#output-file-format-and-tools
-% data-path/run-name_g0/run-name_g0_t0.nidq.bin
+% /home/ninjaben/Desktop/codin/gold-lab/spikeglx-tools/CatGT-linux/ReadMe.html
 %
-% I have
-% /home/ninjaben/Desktop/codin/gold-lab/spikeglx_data/rec_g3/rec_g3_t0.nidq.bin
-% dataPath = '/home/ninjaben/Desktop/codin/gold-lab/spikeglx_data'
-% runName = 'rec'
-% g = '3'
-% t = '0'
-% whichStreams = '-ni'
+% These parameters are "coordinates" specifying input files to process.
+%  - dataPath -- Folder where SpikeGLX was set up to write data
+%  - runName -- Name of a recording session in SpikeGLX, maybe 'rec'
+%  - g -- One or more SpikeGLX "gate" indexes, maybe '0:1'
+%  - t -- One or more SpikeGLX "trigger" indexes, maybe '0:7'
+%  - whichStreams -- Types of acquisition stream/card, maybe '-ni -ap -lf'
 %
-% I tried CatGT('/home/ninjaben/Desktop/codin/gold-lab/spikeglx_data', 'rec', '3', '0', '-ni')
+% The "options" parameter is a combination of flags for secondary
+% behaviors, and also a spec for various primary oprations to perform.
+% I'll defer to the CatGT ReadMe for these.
 %
-% This was pretty quiet in the log
-%     {'[Thd 140553659418432 CPU 0 11/10/22 14:22:48.704'}    {'Cmdline: CatGT -dir=/home/ninjaben/Desktop/codin/gold-lab/spikeglx_data -run=rec -g…'}
-%     {'[Thd 140553659418432 CPU 0 11/10/22 14:22:48.735'}    {0×0 char                                                                              }
-%
-% It created a few new files in the data folder.  What are these?
-%  - rec_g3_tcat.nidq.xa_1_500.txt -- looks like sync pulse edge times.
-%  - rec_g3_tcat.nidq.meta -- subset of input metadata, plus CatGT notes
-%  - rec_g3_fyi.txt -- info like location of "sync_ni" file, above.
-%  - rec_g3_ct_offsets.txt -- not sure, got zeros
-%
-% I think I'll want this wrapper to account for new log messages and files.
-% Maybe take the modification timestamp of CatGT.log as a reference.
-%
-% I think my sample data will need "-prb_fld", an option in SpikeGLX UI.
-% Might also want -prb=0:1
-%
-function log = CatGT(dataPath, runName, g, t, whichStreams, options, whichRunIt)
+% The "whichRunIt" parameter is the file path to where CatGT's "runit.sh"
+% or "runit.bat" script is located on the current machine.  If omitted,
+% makes a best effort attempt to locate a "runit.sh" inside a "CatGT"
+% folder on the Matlab path.
+function [status, logEntries, fyi, CtOffsets] = CatGT(dataPath, runName, g, t, whichStreams, options, whichRunIt)
 
 if nargin < 6 || isempty(options)
     options = '';
 end
 
 if nargin < 7 || isempty(whichRunIt)
-    whichRunIt = '/home/ninjaben/Desktop/codin/gold-lab/spikeglx-tools/CatGT-linux/runit.sh';
+    if ispc()
+        runits = which('runit.bat', '-all');
+    else
+        runits = which('runit.sh', '-all');
+    end
+    containsCatGT = cellfun(@(s) contains(s, 'CatGT'), runits);
+    if any(containsCatGT)
+        matchInds = find(containsCatGT);
+        whichRunIt = runits{matchInds(1)};
+    end
 end
 
+if ~isfile(whichRunIt)
+    error('CatGT "runit" script not found or not a file (%s).', whichRunit);
+end
+
+% Read the existing log file, which CatGT will append to when we call it.
+% From the CatGT ReadMe.html:
+% Errors and run messages are appended to CatGT.log in the current working directory.
+logFile = fullfile(pwd(), 'CatGT.log');
+if isfile(logFile)
+    oldLog = readmatrix(logFile, 'FileType', 'text', 'OutputType', 'char');
+else
+    oldLog = {};
+end
+
+% Build a command line for CatGT and call it.
 command = sprintf('''%s'' ''-dir=%s -run=%s -g=%s -t=%s %s %s''', ...
     whichRunIt, ...
     dataPath, ...
@@ -52,11 +67,42 @@ command = sprintf('''%s'' ''-dir=%s -run=%s -g=%s -t=%s %s %s''', ...
 
 fprintf('Running CatGT command:\n  %s\n', command)
 [status, result] = system(command);
+
+% Look for new log entries appended.
+newLog = readmatrix(logFile, 'FileType', 'text', 'OutputType', 'char');
+logEntries = newLog((1 + numel(oldLog)):end);
+
 if status ~= 0
     error('Error running CatGT (status %d): %s', status, result);
 end
 
-% From the CatGt ReadMe.html:
-% Results are placed next to source, named like this, with t-index = 'cat': path/run_name_g5_tcat.imec1.ap.bin.
-% Errors and run messages are appended to CatGT.log in the current working directory.
-log = readmatrix('CatGT.log', 'FileType', 'text', 'OutputType', 'char');
+% Look for the "FYI" file that describes output files.
+gName = sprintf('%s_g%s', runName, g);
+gPath = fullfile(dataPath, gName);
+fyiName = sprintf('%s_g%s_fyi.txt', runName, g);
+fyi = ReadIni(gPath, fyiName);
+
+% Look for the "offsets" file that describes each input file.
+offsetsName = sprintf('%s_g%s_ct_offsets.txt', runName, g);
+CtOffsets = ReadIni(gPath, offsetsName);
+
+% TODO:
+% There may be more output files created, not mentioned in fyi.
+% For example, re-written bin and meta files for imec probes.
+% Maybe find these by scanning output folders (which are mentioned in fyi)
+% For files newer than the old log file?
+
+
+% Read a file of key-value pairs into a struct.
+% Could be in SpikeGLX "meta" format (ini file).
+% Or lines with some other separator, like ":"
+function info = ReadIni(path, name)
+info = struct();
+
+lines = readlines(fullfile(path, name), 'EmptyLineRule', 'skip');
+for ii = 1:numel(lines)
+    keyValuePair = split(lines{ii}, {':', '='});
+    key = strip(keyValuePair{1});
+    key = key(key ~= '~');
+    info.(key) = strip(keyValuePair{2});
+end

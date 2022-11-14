@@ -28,11 +28,34 @@
 clear;
 clc;
 
+dryRun = false;
+
+% Locate the recording data by coordinates.
 dataPath = '/home/ninjaben/Desktop/codin/gold-lab/spikeglx_data';
 runName = 'rec';
 g = '3';
-t = '0';
-whichStreams = '-ni -ap -lf';
-options = '-prb_fld -prb=0:1';
-dryRun = false;
-info = CatGT(dataPath, runName, g, t, whichStreams, options, dryRun)
+t = '0:0';
+
+% Extract events from NI analog channels.
+%   - The 1Hz sync pulse on channel 1, which is extracted by default.
+%   - Some ther .25Hz blips on channel 0, using an '-xa' extractor.
+whichStreams = '-ni';
+
+% -xa=0,0,2,3.0,4.5,25     ;extract pulse signal from analog chan (js,ip,word,thresh1(V),thresh2(V),millisec)
+% js is stream type, 0 = ni
+% ip is stream index, which is 0 for ni -- "(there is only one NI stream)"
+% word is which digital word to look at
+% I think this means channel index, from subset of NI channels recorded
+% I think the .25Hz signal is on channel 0.
+% Then the next 2 are voltage thresholds
+% and the last is a duration threshold -- for some reason 0 works best???
+% oh, it's excluding pulses based on +/- 20% tolerance of duration
+% I can choose my own tolerance as an extra param after the duration!
+% This dataset must have some really short pulses in it.
+options = '-xa=0,0,0,2.0,4.0,6,5';
+niInfo = CatGT(dataPath, runName, g, t, whichStreams, options, dryRun);
+
+% The fyi file gives meaning to the various output file names!
+niSync = readmatrix(niInfo.fyi.sync_ni);
+niOther = readmatrix(niInfo.fyi.times_ni_0);
+plot(niSync, ones(size(niSync)), '.', niOther, ones(size(niOther)), '*');

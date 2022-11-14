@@ -106,7 +106,7 @@ if dryRun
     info.status = 0;
     info.result = 'test';
 else
-    fprintf('CatGT calling CatGT...\n');
+    fprintf('CatGT starting...\n');
     [info.status, info.result] = system(info.command);
     fprintf('CatGT exit status %d with result: %s\n', info.status, info.result);
 end
@@ -119,8 +119,12 @@ fprintf('CatGT end datetime: %s (%s elapsed)\n', char(info.finish), char(info.du
 info.logEntries = readlines(info.logFile, 'EmptyLineRule', 'read');
 oldLogCount = numel(oldLog);
 newLogCount = numel(info.logEntries);
-fprintf('CatGT wrote %d new log entries (%d total).\n', newLogCount - oldLogCount, newLogCount);
 info.newLogEntries = info.logEntries((oldLogCount + 1):newLogCount);
+diffLogCount = newLogCount - oldLogCount;
+fprintf('CatGT wrote %d new log entries (%d total).\n', diffLogCount, newLogCount);
+for ii = 1:diffLogCount
+    fprintf('CatGT log entry: %s\n', info.newLogEntries{ii});
+end
 
 if info.status ~= 0
     error('CatGT nonzero exit status %d with result: %s', info.status, info.result);
@@ -134,6 +138,10 @@ if isfile(info.fyiFile)
     fprintf('CatGT fyi file found: %s\n', info.fyiFile);
     info.fyi = ReadKeyValuePairs(info.fyiFile);
 
+    % Truncate the start time to the second, since file modifications times
+    % from dir() might have limited precision.
+    newFileTime = dateshift(info.start, 'start', 'second');
+
     % The fyi file also mentions output dirs, in addition to individual files.
     % Look for new files written in these dirs.
     % Note: these dirs might be under the given dataPath,
@@ -145,14 +153,14 @@ if isfile(info.fyiFile)
         outPath = info.fyi.(fieldName);
         if startsWith(fieldName, 'outpath') && isfolder(outPath)
             dirInfo = dir(outPath);
-            isNewFile = arrayfun(@(d)~d.isdir && datetime(d.date) > info.start, dirInfo);
+            isNewFile = arrayfun(@(d)~d.isdir && datetime(d.datenum, 'ConvertFrom', 'datenum') >= newFileTime, dirInfo);
             newFiles = cellfun(@(name)fullfile(outPath, name), {dirInfo(isNewFile).name}, 'UniformOutput', false);
             info.outFiles = cat(1, info.outFiles, newFiles(:));
         end
     end
 
     outFileCount = numel(info.outFiles);
-    fprintf('CatGT %d new output files found.\n', outFileCount);
+    fprintf('CatGT %d new output files found (since %s).\n', outFileCount, char(newFileTime));
     for ii = 1:outFileCount
        fprintf('CatGT new output file: %s\n', info.outFiles{ii});
     end

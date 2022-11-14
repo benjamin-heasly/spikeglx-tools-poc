@@ -10,7 +10,7 @@
 % BSH added interpretation from the SpikeGLX docs:
 %  - https://billkarsh.github.io/SpikeGLX/Sgl_help/UserManual.html
 %  - https://billkarsh.github.io/SpikeGLX/Sgl_help/Metadata_30.html
-function PlotSpikeGlxRecordingSummary(recDir, startTime, duration)
+function PlotSpikeGlxRecordingSummary(recDir, startTime, duration, binPattern)
 
 if nargin < 1 || isempty(recDir)
     recDir = pwd();
@@ -24,9 +24,13 @@ if nargin < 3 || isempty(duration)
     duration = 30;
 end
 
-fprintf('Searching for .bin files in %s\n', recDir);
+if nargin < 4 || isempty(binPattern)
+    binPattern = '**/*.bin';
+end
 
-binFiles = dir(fullfile(recDir, '**/*.bin'));
+fprintf('Searching for .bin files matching "%s" in %s\n', binPattern, recDir);
+
+binFiles = dir(fullfile(recDir, binPattern));
 nFiles = numel(binFiles);
 
 fprintf('Found %d .bin files.\n', nFiles);

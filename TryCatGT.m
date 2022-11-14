@@ -34,4 +34,5 @@ g = '3';
 t = '0';
 whichStreams = '-ni -ap -lf';
 options = '-prb_fld -prb=0:1';
-[status, logEntries, fyi, CtOffsets] = CatGT(dataPath, runName, g, t, whichStreams, options)
+dryRun = false;
+info = CatGT(dataPath, runName, g, t, whichStreams, options, dryRun)

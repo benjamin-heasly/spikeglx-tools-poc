@@ -41,8 +41,8 @@ indices = zeros(outputSize);
 
 fid = fopen(fullfile(path, binName), 'rb');
 for ii = 1:nChunks
-    chunkSamp0 = (ii - 1) * sampPerChunk;
-    chunkNSamp = min(sampPerChunk, nSamp + samp0 - chunkSamp0);
+    chunkSamp0 = (ii - 1) * sampPerChunk + samp0;
+    chunkNSamp = min(sampPerChunk, nFileSamp - chunkSamp0);
     chunkSize = [nChan, chunkNSamp];
 
     chunkOffset = chunkSamp0 * 2 * nChan;

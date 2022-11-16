@@ -38,37 +38,43 @@ if nFiles < 1
     return;
 end
 
+% Sort the bin files by name, just for convenience.
+sortKeys = arrayfun(@(d)d.name, binFiles, 'UniformOutput', false);
+[~, sortOrder] = sort(sortKeys);
+binFiles = binFiles(sortOrder);
+
 fprintf('Plotting %.2f seconds of data starting at %.2f, for each file.\n', duration, startTime);
 
 figure();
-legendNames = cell(1, nFiles);
 plotColors = lines(nFiles);
+endTime = startTime;
 for ii = 1:nFiles
     binPath = binFiles(ii).folder;
     binName = binFiles(ii).name;
     fprintf('\nReading .meta and .bin for %s\n', binName);
     meta = ReadMeta(binName, binPath);
 
-    markerSize = 3*(1 + nFiles - ii);
     markerColor = plotColors(ii, :);
-    legendNames{ii} = binName;
-    endTime = startTime;
 
     if strcmp(meta.typeThis, 'nidq')
         DescribeNI(meta, binName);
         [dataArray, sampleTimes] = ReadDataNI(meta, binName, binPath, startTime, duration);
-        endTime = max(endTime, max(sampleTimes(:)));
+        if ~isempty(sampleTimes)
+            endTime = max(endTime, max(sampleTimes(:)));
+        end
 
         [syncWave, syncTimes] = ExtractSyncNI(meta, dataArray, sampleTimes);
         [analogWaves, analogTimes] = ExtractAnalogNI(meta, dataArray, sampleTimes);
 
         subplot(4, 1, 2);
         hold on
-        plot(analogTimes', analogWaves', '.', 'MarkerSize', markerSize, 'Color', markerColor);
+        plot(analogTimes', analogWaves', '.', 'Color', markerColor);
     else
         DescribeIM(meta, binName);
         [dataArray, sampleTimes] = ReadDataIM(meta, binName, binPath, startTime, duration);
-        endTime = max(endTime, max(sampleTimes(:)));
+        if ~isempty(sampleTimes)
+            endTime = max(endTime, max(sampleTimes(:)));
+        end
 
         [syncWave, syncTimes] = ExtractSyncIM(meta, dataArray, sampleTimes);
         [apWaves, apTimes] = ExtractApIM(meta, dataArray, sampleTimes);
@@ -76,19 +82,20 @@ for ii = 1:nFiles
 
         subplot(4, 1, 3);
         hold on
-        plot(apTimes', apWaves', '.', 'MarkerSize', markerSize, 'Color', markerColor);
+        plot(apTimes', apWaves', '.', 'Color', markerColor);
         subplot(4, 1, 4);
         hold on
-        plot(lfTimes', lfWaves', '.', 'MarkerSize', markerSize, 'Color', markerColor);
+        plot(lfTimes', lfWaves', '.', 'Color', markerColor);
     end
 
     subplot(4, 1, 1);
     hold on
-    plot(syncTimes', syncWave', '.', 'MarkerSize', markerSize, 'Color', markerColor);
+    plot(syncTimes', syncWave', '.', 'Color', markerColor, 'DisplayName', binName);
 end
 
 subplot(4, 1, 1);
-legend(legendNames, "Location", "best")
+leg = legend("Location", "best");
+set(leg, 'Interpreter', 'none');
 set(gca, 'XGrid', 'on')
 xlim(gca, [startTime, endTime])
 ylabel('sync V or bool')
@@ -215,7 +222,7 @@ sampleRate = str2double(meta.niSampRate);
 samp0 = floor(startTime * sampleRate);
 nSamp = ceil(duration * sampleRate);
 [dataArray, dataIndices] = ReadBinBen(samp0, nSamp, meta, binName, binPath);
-sampleTimes = startTime + (dataIndices / sampleRate);
+sampleTimes = dataIndices / sampleRate;
 
 
 % Parse out the sync wave from National Instruments data.
@@ -261,7 +268,7 @@ sampleRate = str2double(meta.imSampRate);
 samp0 = floor(startTime * sampleRate);
 nSamp = ceil(duration * sampleRate);
 [dataArray, dataIndices] = ReadBinBen(samp0, nSamp, meta, binName, binPath);
-sampleTimes = startTime + (dataIndices / sampleRate);
+sampleTimes = dataIndices / sampleRate;
 
 
 % Parse out the sync wave from Imec data.

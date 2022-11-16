@@ -8,7 +8,7 @@
 %  - CatGT log file in the working directory, 'CatGT.log'
 %  - CatGT "offsets" file that has sample offsets for each file in a run
 %  - CatGT "fyi" file that describes other output files and folders
-%  - any new or modified files found in the output folders
+%  - any files found in the output folders
 %
 % This util is intended to instantiate documention from the CatGT
 % ReadMe.html, for convenience and integration into pipelines.
@@ -29,6 +29,10 @@
 % to the CatGT ReadMe.html to describe these.  All the options can be
 % passed to this util as one string, for example '-prb_fld -prb=0:1'.
 %
+% "outputPath" can be supplied to specify where new files should be
+% written.  When present, it gets added to the options with as
+% "-dest=[outputPath]".
+%
 % The "dryRun" parameter is false by default.  If set to true, this util
 % will skip invoking CatGT but still try to print and parse everything
 % else like normal.
@@ -36,7 +40,9 @@
 % The "whichRunIt" parameter is the file path to CatGT's "runit" shell
 % script on the current machine.  If omitted, makes a best-effort attempt
 % to locate a "runit" sh or bat inside a "CatGT" folder on the Matlab path.
-function info = CatGT(dataPath, runName, g, t, whichStreams, options, dryRun, whichRunIt)
+function info = CatGT(dataPath, runName, g, t, whichStreams, options, outputPath, dryRun, whichRunIt)
+
+fprintf('CatGT VVVVV\n');
 
 info = struct();
 
@@ -44,11 +50,31 @@ if nargin < 6 || isempty(options)
     options = '';
 end
 
-if nargin < 7 || isempty(dryRun)
+gParts = split(g, {':', ','});
+firstG = gParts{1};
+if nargin < 7 || isempty(outputPath)
+    % Look here for the fyi and offsets files, below.
+    gFolder = sprintf('%s_g%s', runName, firstG);
+    fyiPath = fullfile(dataPath, gFolder);
+else
+    % Write results here.
+    [~, ~] = mkdir(outputPath);
+    options = [options ' -dest=' outputPath];
+
+    % Look here for the fyi and offsets files, below.
+    if contains(options, '-supercat')
+        gFolder = sprintf('supercat_%s_g%s', runName, firstG);
+    else
+        gFolder = sprintf('catgt_%s_g%s', runName, firstG);
+    end
+    fyiPath = fullfile(outputPath, gFolder);
+end
+
+if nargin < 8 || isempty(dryRun)
     dryRun = false;
 end
 
-if nargin < 8 || isempty(whichRunIt)
+if nargin < 9 || isempty(whichRunIt)
     % The CatGT executable is a shell script named "runit".
     if ispc()
         runits = which('runit.bat', '-all');
@@ -78,7 +104,7 @@ end
 info.logFile = fullfile(pwd(), 'CatGT.log');
 if isfile(info.logFile)
     fprintf('CatGT existing log file found: %s\n', info.logFile);
-    oldLog = readlines(info.logFile, 'EmptyLineRule', 'read');
+    oldLog = readlines(info.logFile, 'EmptyLineRule', 'skip');
 else
     fprintf('CatGT log file does not exist yet at: %s\n', info.logFile);
     oldLog = {};
@@ -116,7 +142,7 @@ info.duration = info.finish - info.start;
 fprintf('CatGT end datetime: %s (%s elapsed)\n', char(info.finish), char(info.duration));
 
 % Look for new log entries appended.
-info.logEntries = readlines(info.logFile, 'EmptyLineRule', 'read');
+info.logEntries = readlines(info.logFile, 'EmptyLineRule', 'skip');
 oldLogCount = numel(oldLog);
 newLogCount = numel(info.logEntries);
 info.newLogEntries = info.logEntries((oldLogCount + 1):newLogCount);
@@ -131,19 +157,13 @@ if info.status ~= 0
 end
 
 % Look for the "FYI" file that describes output files.
-gName = sprintf('%s_g%s', runName, g);
-gPath = fullfile(dataPath, gName);
-info.fyiFile = fullfile(gPath, sprintf('%s_g%s_fyi.txt', runName, g));
+info.fyiFile = fullfile(fyiPath, sprintf('%s_g%s_fyi.txt', runName, firstG));
 if isfile(info.fyiFile)
     fprintf('CatGT fyi file found: %s\n', info.fyiFile);
     info.fyi = ReadKeyValuePairs(info.fyiFile);
 
-    % Truncate the start time to the second, since file modifications times
-    % from dir() might have limited precision.
-    newFileTime = dateshift(info.start, 'start', 'second');
-
     % The fyi file also mentions output dirs, in addition to individual files.
-    % Look for new files written in these dirs.
+    % Look for files written in these dirs.
     % Note: these dirs might be under the given dataPath,
     % or some other path if the "-dest=path" option was provided.
     fyiFields = fieldnames(info.fyi);
@@ -153,16 +173,16 @@ if isfile(info.fyiFile)
         outPath = info.fyi.(fieldName);
         if startsWith(fieldName, 'outpath') && isfolder(outPath)
             dirInfo = dir(outPath);
-            isNewFile = arrayfun(@(d)~d.isdir && datetime(d.datenum, 'ConvertFrom', 'datenum') >= newFileTime, dirInfo);
-            newFiles = cellfun(@(name)fullfile(outPath, name), {dirInfo(isNewFile).name}, 'UniformOutput', false);
-            info.outFiles = cat(1, info.outFiles, newFiles(:));
+            isNewFile = arrayfun(@(d)~d.isdir, dirInfo);
+            outFilePaths = cellfun(@(name)fullfile(outPath, name), {dirInfo(isNewFile).name}, 'UniformOutput', false);
+            info.outFiles = cat(1, info.outFiles, outFilePaths(:));
         end
     end
 
     outFileCount = numel(info.outFiles);
-    fprintf('CatGT %d new output files found (since %s).\n', outFileCount, char(newFileTime));
+    fprintf('CatGT %d output files found.\n', outFileCount);
     for ii = 1:outFileCount
-       fprintf('CatGT new output file: %s\n', info.outFiles{ii});
+        fprintf('CatGT output file: %s\n', info.outFiles{ii});
     end
 else
     fprintf('CatGT fyi file not found at: %s\n', info.fyiFile);
@@ -170,13 +190,19 @@ end
 
 
 % Look for the "offsets" file that has sample offsets for input file.
-info.offsetsFile = fullfile(gPath, sprintf('%s_g%s_ct_offsets.txt', runName, g));
+if contains(options, '-supercat')
+    info.offsetsFile = fullfile(fyiPath, sprintf('%s_g%s_sc_offsets.txt', runName, firstG));
+else
+    info.offsetsFile = fullfile(fyiPath, sprintf('%s_g%s_ct_offsets.txt', runName, firstG));
+end
 if isfile(info.offsetsFile)
     fprintf('CatGT offsets file found: %s\n', info.offsetsFile);
     info.offsets = ReadKeyValuePairs(info.offsetsFile);
 else
     fprintf('CatGT offsets file not found at: %s\n', info.offsetsFile);
 end
+
+fprintf('CatGT ^^^^^\n');
 
 
 % Read a file of key-value pairs into a struct.

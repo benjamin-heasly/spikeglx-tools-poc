@@ -47,6 +47,18 @@ What subset of samples does `ReadBinBen` return?  It loads the binary file in ch
 
 Why min and max?  Min and max have the property of being actual, raw sample values from the binary data.  This enables downstream processing by SpikeGLX_Datafile_Tools utilities that make assumptions about possible values or their encodings (for example, when extracting digital words).  Other summary stats, like mean, lack this property.  Median would also have this property, but it's slower to compute.
 
+### CatGT
+
+I wrote a Matlab wrapper around the SpikeGLX [CatGT](https://billkarsh.github.io/SpikeGLX/#catgt) command line utility.  CatGT itself does useful preprocessing on data files produced by SpikeGLX -- things like managing SpikeGlx folder and file naming conventions, filtering action potential and local field waveforms, and extracting event times and digital values from other data streams.
+
+The Matlab wrapper is intended to make the CatGT executable easier to integrate into pipelines.  It handles things like command line integration, logging, and finding and parsing CatGT outputs into structs that can be used in Matlab to configure downstream processing.
+
+### TryCatGT
+
+This script uses the utilities above to load and process data from multiple SpikeGLX recording files.  This is intended to resemble the first stages of a larger processing pipeline.
+
+See an example plot, below.
+
 # Examples
 
 Here's some example output from `PlotSpikeGlxRecordingSummary`.
@@ -106,10 +118,23 @@ Here are example plots from the same National Instruments card and Imec Neuropix
 
 ![Plot of full 309 seconds of recording](images/PlotSpikeGlxRecordingSummary-full.png)
 
-Here's a detail of 10 seconds of the same recording, where the sync pulse and other features are visible.
+Here's a detail of 30 seconds of the same recording, where the sync pulse and other features are visible.
 
-![Plot of 10 second excerpt from a longer](images/PlotSpikeGlxRecordingSummary-10s.png)
+![Plot of 30 second excerpt from a longer](images/PlotSpikeGlxRecordingSummary-30s.png)
 
+## TryCatGT
+
+Here's another example plot similar to the ones above.  The difference is that the data have been processed by the CatGT utility in several ways:
+ - 1Hz sync pulse event times have been extracted and overlaid on the raw waveforms.
+ - Pulse events from an additional ~0.333Hz waveform have been extracted and overlaid on the raw waveform.
+ - Action potential and local field samples have been realigned to account for Neuropixels ADC multiplexing.
+ - Action potential waveforms have been CAR filtered and bandpass filtered.
+ - Local field waveforms have been bandpass filtered -- and them mysteriously dropped by CatGT (!)
+ - Data from two separate recoding sessions have been joined together.
+ 
+ The plot covers 30 seconds, centered on the join point between recording sessions.
+ 
+ ![Plot of two processed, joined recordings](images/PlotSpikeGlxRecordingSummary-supercat.png)
 
 # Data
 
@@ -119,6 +144,8 @@ The data are not publicly available.  For personal reference, I parked the data 
 
 ```
 gsutil cp -r gs://tripledip-pesaran-lab-data/spikeglx_data/rec_g3 /home/ninjaben/Desktop/codin/gold-lab/spikeglx_data
+gsutil cp -r gs://tripledip-pesaran-lab-data/spikeglx_data/rec1_g0 /home/ninjaben/Desktop/codin/gold-lab/spikeglx_data
+gsutil cp -r gs://tripledip-pesaran-lab-data/spikeglx_data/rec1_g1 /home/ninjaben/Desktop/codin/gold-lab/spikeglx_data
 ```
 
 This required authentication with the Google APIs.

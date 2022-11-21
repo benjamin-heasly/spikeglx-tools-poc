@@ -1,6 +1,12 @@
+# Matlab
 *.asv
 *.m~
 
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# SpikeGLX
 CatGT.log
 TPrime.log
-

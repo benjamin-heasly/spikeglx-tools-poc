@@ -12,9 +12,10 @@
 #  - https://billkarsh.github.io/SpikeGLX/Sgl_help/Metadata_30.html
 
 from pathlib import Path
+import numpy as np
 
 from . import datafile
-
+from . import datafile_ben
 
 def plot_recording_summary(rec_dir, start_time=0, duration=30, bin_glob='**/*.bin'):
 
@@ -31,6 +32,7 @@ def plot_recording_summary(rec_dir, start_time=0, duration=30, bin_glob='**/*.bi
 
     print(f'Plotting {duration} seconds of data starting at {start_time}, for each file.')
 
+    end_time = start_time
     for bin_file in bin_files:
 
         print(f'\nReading .meta and .bin for {bin_file.name}')
@@ -38,8 +40,14 @@ def plot_recording_summary(rec_dir, start_time=0, duration=30, bin_glob='**/*.bi
         meta = datafile.readMeta(bin_file)
         if (meta['typeThis'] == 'nidq'):
             describe_ni(meta, bin_file)
+            [data_array, sample_times] = read_data_ni(meta, bin_file, start_time, duration)
+            if sample_times.size:
+                end_time = max(end_time, sample_times.max())
         else:
             describe_im(meta, bin_file)
+            [data_array, sample_times] = read_data_im(meta, bin_file, start_time, duration)
+            if sample_times.size:
+                end_time = max(end_time, sample_times.max())
 
 
 def describe_ni(meta, bin_file):
@@ -123,3 +131,27 @@ def describe_im(meta, bin_file):
     print(f'First sample: {int(meta["firstSample"])}')
 
     print(f'User notes: {meta["userNotes"]}')
+
+
+def read_data_ni(meta, bin_file, start_time = 0, duration = None):
+    if duration == None or not np.isfinite(duration):
+        duration = float(meta["fileTimeSecs"]) - start_time
+
+    sample_rate = float(meta["niSampRate"])
+    samp_0 = int(np.floor(start_time * sample_rate))
+    n_samp = int(np.ceil(duration * sample_rate))
+    [data_array, data_indices] = datafile_ben.read_bin_ben(samp_0, n_samp, meta, bin_file)
+    sample_times = data_indices / sample_rate;
+    return(data_array, sample_times)
+
+
+def read_data_im(meta, bin_file, start_time = 0, duration = None):
+    if duration == None or not np.isfinite(duration):
+        duration = float(meta["fileTimeSecs"]) - start_time
+
+    sample_rate = float(meta["imSampRate"])
+    samp_0 = int(np.floor(start_time * sample_rate))
+    n_samp = int(np.ceil(duration * sample_rate))
+    [data_array, data_indices] = datafile_ben.read_bin_ben(samp_0, n_samp, meta, bin_file)
+    sample_times = data_indices / sample_rate;
+    return(data_array, sample_times)

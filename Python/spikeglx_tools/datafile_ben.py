@@ -42,6 +42,7 @@ def read_bin_ben(samp_0, n_samp, meta, bin_file, samp_per_chunk=100):
         chunk_offset = chunk_samp_0 * 2 * n_chan
         chunk_data = np.memmap(bin_file, dtype='int16', mode='r', shape=chunk_size, offset=chunk_offset, order='F')
 
+        # TODO: can probably simplify indexing here and below using [] notation!
         min_inds = chunk_data.argmin(1, keepdims=True)
         mins = np.take_along_axis(chunk_data, min_inds, 1)
         min_samps = min_inds + chunk_samp_0

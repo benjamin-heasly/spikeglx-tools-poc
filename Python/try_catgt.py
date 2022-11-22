@@ -3,7 +3,6 @@
 # $ python --version
 # Python 3.11.0
 
-import matplotlib.pyplot as plt
 
 from spikeglx_tools.summary import plot_recording_summary
 

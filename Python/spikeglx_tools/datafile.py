@@ -246,6 +246,8 @@ def makeMemMapRaw(binFullPath, meta):
 # - dLineList is a zero-based list of one or more lines/bits
 #    to scan from word dwReq.
 #
+# BSH: return calculated digital channel number, along with
+#      the extracted digital signal -- helps align stuff.
 def ExtractDigital(rawData, firstSamp, lastSamp, dwReq, dLineList, meta):
     # Get channel index of requested digital word dwReq
     if meta['typeThis'] == 'imec':
@@ -253,7 +255,7 @@ def ExtractDigital(rawData, firstSamp, lastSamp, dwReq, dLineList, meta):
         if SY == 0:
             print("No imec sync channel saved.")
             digArray = np.zeros((0), 'uint8')
-            return(digArray)
+            return(digArray, None)
         else:
             digCh = AP + LF + dwReq
     else:
@@ -261,7 +263,7 @@ def ExtractDigital(rawData, firstSamp, lastSamp, dwReq, dLineList, meta):
         if dwReq > DW-1:
             print("Maximum digital word in file = %d" % (DW-1))
             digArray = np.zeros((0), 'uint8')
-            return(digArray)
+            return(digArray, None)
         else:
             digCh = MN + MA + XA + dwReq
 
@@ -280,4 +282,4 @@ def ExtractDigital(rawData, firstSamp, lastSamp, dwReq, dLineList, meta):
         byteN, bitN = np.divmod(dLineList[i], 8)
         targI = byteN*8 + (7 - bitN)
         digArray[i, :] = bitWiseData[targI, :]
-    return(digArray)
+    return(digArray, digCh)

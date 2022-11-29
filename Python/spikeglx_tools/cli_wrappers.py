@@ -1,13 +1,28 @@
 from pathlib import Path
+from glob import glob
 import os
 import platform
 import subprocess
-import shutil
-from datetime import datetime
+from datetime import datetime, timezone
+
+
+def read_key_value_pairs(file_path, separator='='):
+    """ Read a file of key-value pairs into a dict.
+
+    Could be SpikeGLX "meta" ini file: lines with with separator="=",
+    or any file with lines and separators, like "=" or ":".
+    """
+    info = {}
+    with open(file_path) as f:
+        for line in f:
+            if not line.isspace():
+                [key, value] = line.split(separator, maxsplit=1)
+                info[key.strip()] = value.strip()
+    return info
 
 
 def cat_gt(data_path, run_name, g, t, which_streams, options='', output_path=None, dry_run=False, which_runit=None):
-    """Call CatGT with its various arguments for file coordinates and operators.
+    """ Call CatGT with its various arguments for file coordinates and operators.
     Handle shell / command line integration.
     Parse and return results from the shell and files produced by CatGT.
 
@@ -49,20 +64,21 @@ def cat_gt(data_path, run_name, g, t, which_streams, options='', output_path=Non
 
     The "which_runit" keyword arg can be the file path to CatGT's "runit" shell
     script on the current machine.  If omitted, this util makes a best-effort
-    attempt to locate a "runit.sh" or "runit.bat" in the same folder as a GatGT
-    executable on the system path.
+    attempt to locate a "runit.sh" or "runit.bat" in the same folder as a "CatGT"
+    file, somewhere in or below the current directory.
     """
 
     print('CatGT VVVVV')
 
+    working_dir = os.getcwd()
     info = {};
 
-    g_parts = g.split(':|,')
+    g_parts = g.replace(':', ',').split(',')
     first_g = g_parts[0]
     if not output_path:
         # Look here for the fyi file and offsets file, below.
         g_folder = f'{run_name}_g{first_g}'
-        fyi_path = Path(data_path, g_folder)
+        fyi_dir = Path(data_path, g_folder)
     else:
         # Write new data files here.
         Path.mkdir(output_path, parents=True, exist_ok=True)
@@ -74,51 +90,51 @@ def cat_gt(data_path, run_name, g, t, which_streams, options='', output_path=Non
         else:
             g_folder = f'catgt_{run_name}_g{first_g}'
 
-        fyi_path = Path(output_path, g_folder)
+        fyi_dir = Path(output_path, g_folder)
 
     if not which_runit:
-        # There should be a "CatGT" executable somewhere on the system path.
-        which_catgt = shutil.which('CatGT', mode=os.F_OK|os.X_OK)
+        # Search the current folder and subfolders for the "CatGT" executable.
+        catgt_matches = glob('**/CatGT', root_dir=working_dir, recursive=True)
+        if not catgt_matches:
+            raise Exception(f'CatGT executable not found within pwd: {working_dir}')
 
-        # However, the CatGT entrypoint is a "runit" script in the same dir.
-        if which_catgt:
-            catgt_path = Path(which_catgt)
-            if platform.system() == "Windows":
-                which_runit = Path(catgt_path.parent, 'runit.bat')
-            else:
-                which_runit = Path(catgt_path.parent, 'runit.sh')
+        cat_gt_dir = Path(catgt_matches[0]).parent
+        if platform.system() == "Windows":
+            which_runit = Path(cat_gt_dir, 'runit.bat')
+        else:
+            which_runit = Path(cat_gt_dir, 'runit.sh')
 
-    info['runit'] = which_runit
-    runit_path = Path(which_runit)
-    if runit_path.exists:
+    runit_path = Path(which_runit).absolute()
+    if runit_path.exists():
         print(f'CatGT runit script found: {runit_path}')
     else:
         raise Exception(f'CatGT runit script not found or not a file: {runit_path}')
 
+    info['runit'] = str(runit_path)
+
     # Read the existing log file, which CatGT will append to when we call it.
     # From the CatGT ReadMe.html:
     # "Errors and run messages are appended to CatGT.log in the current working directory."
-    working_dir = os.getcwd()
-    log_path = Path(working_dir, 'CatGT.log')
-    info['log_file'] = log_path.absolute()
-    if log_path.exists():
-        print(f'CatGT existing log file found: {log_path}')
+    log_file = Path(working_dir, 'CatGT.log')
+    info['log_file'] = str(log_file)
+    if log_file.exists():
+        print(f'CatGT existing log file found: {log_file}')
         with open(info['log_file']) as f:
-            old_log = [line.rstrip('\n') for line in f if not line.isspace()]
+            old_log = [line.rstrip() for line in f if not line.isspace()]
     else:
-        print(f'CatGT log file does not exist yet at: {log_path}')
+        print(f'CatGT log file does not exist yet at: {log_file}')
         old_log = []
 
     #Call CatGT with a big command line.
     command_args = f"-dir={data_path} -run={run_name} -g={g} -t={t} {which_streams} {options}"
-    command_line = f"'{which_runit}' '{command_args}'"
+    command_line = f"'{runit_path}' '{command_args}'"
     info['command'] = command_line
     info['pwd'] = working_dir
     print(f'CatGT working dir: {working_dir}')
 
-    start = datetime.now()
-    info['start'] = start
-    print(f'CatGT start datetime: {str(start)}')
+    start = datetime.now(timezone.utc)
+    info['start'] = str(start)
+    print(f'CatGT start datetime: {start}')
 
     print(f'CatGT command: {command_line}')
     if dry_run:
@@ -127,20 +143,23 @@ def cat_gt(data_path, run_name, g, t, which_streams, options='', output_path=Non
         info['result'] = 'test'
     else:
         print('CatGT starting...')
-        completed = subprocess.run([f'{which_runit}', f'{command_args}'], text=True, stderr=subprocess.STDOUT)
+        completed = subprocess.run([f'{runit_path}', f'{command_args}'], text=True, stderr=subprocess.STDOUT)
         info['status'] = completed.returncode
         info['result'] = completed.stdout
         print(f'CatGT exit status {completed.returncode} with result: {completed.stdout}')
 
-    finish = datetime.now()
-    info['finish'] = finish
+    finish = datetime.now(timezone.utc)
+    info['finish'] = str(finish)
     duration = finish - start
-    info['duration'] = duration
-    print(f'CatGT end datetime: {str(finish)} ({duration} elapsed)')
+    info['duration'] = str(duration)
+    print(f'CatGT end datetime: {finish} ({duration} elapsed)')
 
     # Look for new log entries appended.
-    with open(info['log_file']) as f:
-        new_log = [line.rstrip('\n') for line in f if not line.isspace()]
+    if log_file.exists():
+        with open(info['log_file']) as f:
+            new_log = [line.rstrip() for line in f if not line.isspace()]
+    else:
+        new_log = []
 
     info['log_entries'] = new_log
     old_log_count = len(old_log)
@@ -155,52 +174,46 @@ def cat_gt(data_path, run_name, g, t, which_streams, options='', output_path=Non
     if info['status'] != 0:
         raise Exception(f'CatGT nonzero exit status {info["status"]} with result: {info["result"]}')
 
-# % Look for the "FYI" file that describes output files.
-# info.fyiFile = fullfile(fyiPath, sprintf('%s_g%s_fyi.txt', runName, firstG));
-# if isfile(info.fyiFile)
-#     fprintf('CatGT fyi file found: %s\n', info.fyiFile);
-#     info.fyi = ReadKeyValuePairs(info.fyiFile);
+    # Look for the "FYI" file that describes output files.
+    fyi_file = Path(fyi_dir, f'{run_name}_g{first_g}_fyi.txt')
+    info['fyi_file'] = str(fyi_file)
+    if fyi_file.exists():
+        print(f'CatGT fyi file found: {fyi_file}')
+        fyi = read_key_value_pairs(fyi_file)
+        info['fyi'] = fyi
 
-#     % The fyi file also mentions output dirs, in addition to individual files.
-#     % Look for files written in these dirs.
-#     % Note: these dirs might be under the given dataPath,
-#     % or some other path if the "-dest=path" option was provided.
-#     fyiFields = fieldnames(info.fyi);
-#     info.outFiles = {};
-#     for ii = 1:numel(fyiFields)
-#         fieldName = fyiFields{ii};
-#         outPath = info.fyi.(fieldName);
-#         if startsWith(fieldName, 'outpath') && isfolder(outPath)
-#             dirInfo = dir(outPath);
-#             isNewFile = arrayfun(@(d)~d.isdir, dirInfo);
-#             outFilePaths = cellfun(@(name)fullfile(outPath, name), {dirInfo(isNewFile).name}, 'UniformOutput', false);
-#             info.outFiles = cat(1, info.outFiles, outFilePaths(:));
-#         end
-#     end
+        # The fyi file also mentions output dirs, in addition to individual files.
+        # Look for files written in these dirs.
+        # Note: these dirs might be under the given dataPath,
+        # or some other path if the "-dest=path" option was provided.
+        out_files = []
+        for key in fyi:
+            if key.startswith('outpath'):
+                out_path = Path(fyi[key])
+                if out_path.exists() and out_path.is_dir():
+                    files = [str(Path(out_path, f.name)) for f in os.scandir(out_path) if f.is_file]
+                    out_files = out_files + files
 
-#     outFileCount = numel(info.outFiles);
-#     fprintf('CatGT %d output files found.\n', outFileCount);
-#     for ii = 1:outFileCount
-#         fprintf('CatGT output file: %s\n', info.outFiles{ii});
-#     end
-# else
-#     fprintf('CatGT fyi file not found at: %s\n', info.fyiFile);
-# end
+        info['out_files'] = out_files
+        print(f'CatGT {len(out_files)} output files found.')
+        for out_file in out_files:
+            print(f'CatGT output file: {out_file}')
+    else:
+        print(f'CatGT fyi file not found at: {fyi_file}')
 
 
-# % Look for the "offsets" file that has sample offsets for input file.
-# if contains(options, '-supercat')
-#     info.offsetsFile = fullfile(fyiPath, sprintf('%s_g%s_sc_offsets.txt', runName, firstG));
-# else
-#     info.offsetsFile = fullfile(fyiPath, sprintf('%s_g%s_ct_offsets.txt', runName, firstG));
-# end
-# if isfile(info.offsetsFile)
-#     fprintf('CatGT offsets file found: %s\n', info.offsetsFile);
-#     info.offsets = ReadKeyValuePairs(info.offsetsFile);
-# else
-#     fprintf('CatGT offsets file not found at: %s\n', info.offsetsFile);
-# end
+    # Look for the "offsets" file that has sample offsets for input file.
+    if '-supercat' in options:
+        offsets_file = Path(fyi_dir, f'{run_name}_g{first_g}_sc_offsets.txt')
+    else:
+        offsets_file = Path(fyi_dir, f'{run_name}_g{first_g}_ct_offsets.txt')
+    info['offsets_file'] = str(offsets_file)
+    if offsets_file.exists():
+        print(f'CatGT offsets file found: {offsets_file}')
+        info['offsets'] = read_key_value_pairs(offsets_file, ':')
+    else:
+        print(f'CatGT offsets file not found at: {offsets_file}')
 
-# fprintf('CatGT ^^^^^\n');
+    print('CatGT ^^^^^')
 
     return info

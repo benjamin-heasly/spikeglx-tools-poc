@@ -3,22 +3,30 @@
 # $ python --version
 # Python 3.11.0
 
+from pprint import pprint
 from pathlib import Path
 
 from spikeglx_tools.summary import plot_recording_summary
-from spikeglx_tools.cat_gt import cat_gt
-
-data_dir = '/home/ninjaben/Desktop/codin/gold-lab/spikeglx_data/rec_g3';
-#plot_recording_summary(data_dir)
+from spikeglx_tools.cli_wrappers import cat_gt
 
 
-data_path = '/home/ninjaben/Desktop/codin/gold-lab/spikeglx_data';
-run_name = 'cheese' #'rec'
+data_path = 'spikeglx_data';
+run_name = 'rec'
 g = '3';
 t = '0';
 which_streams = '-ni -ap -lf'
 products_path = Path(data_path, 'products')
 dry_run = False
-which_runit = '/home/ninjaben/Desktop/codin/gold-lab/spikeglx-tools/CatGT-linux/runit.sh'
-info = cat_gt(data_path, run_name, g, t, which_streams, output_path=products_path, dry_run=dry_run, which_runit=which_runit)
-print(info)
+
+options = '-xa=0,0,0,2.0,4.0,6,5';
+options = options + ' -pass1_force_ni_ob_bin'
+options = options + ' -prb=0:1 -prb_fld'
+options = options + ' -out_prb_fld'
+options = options + ' -loccar=2,8'
+options = options + ' -apfilter=butter,12,300,10000'
+options = options + ' -lffilter=butter,12,1,500'
+
+info = cat_gt(data_path, run_name, g, t, which_streams, options=options, output_path=products_path, dry_run=dry_run)
+pprint(info)
+
+plot_recording_summary(info['fyi']['outpath_top'])

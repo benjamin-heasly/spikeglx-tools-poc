@@ -7,7 +7,7 @@ from pprint import pprint
 from pathlib import Path
 
 from spikeglx_tools.summary import plot_recording_summary
-from spikeglx_tools.cli_wrappers import cat_gt
+from spikeglx_tools.cli_wrappers import catgt
 
 
 data_path = 'spikeglx_data';
@@ -26,7 +26,7 @@ options = options + ' -loccar=2,8'
 options = options + ' -apfilter=butter,12,300,10000'
 options = options + ' -lffilter=butter,12,1,500'
 
-info = cat_gt(data_path, run_name, g, t, which_streams, options=options, output_path=products_path, dry_run=dry_run)
+info = catgt(data_path, run_name, g, t, which_streams, options=options, output_path=products_path, dry_run=dry_run)
 pprint(info)
 
 plot_recording_summary(info['fyi']['outpath_top'])

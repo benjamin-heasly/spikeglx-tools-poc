@@ -1,0 +1,62 @@
+#  Use TPrime on some sample data from the Pesaran lab.
+#  This is intended to be like the second stage of a processing pipeline.
+#
+#  The data are from a SpikeGLX recording "rec" with one gate saved, "g3".
+#
+#  This assumes the recording has already been processed by CatGT, as in
+#  try_catgt.py.
+
+from pathlib import Path
+import numpy as np
+import matplotlib.pyplot as plt
+
+from spikeglx_tools.cli_wrappers import read_key_value_pairs, read_floats, tprime
+
+# Locate the recordings on the local machine.
+data_path = 'spikeglx_data';
+products_path = Path(data_path, 'products')
+
+# Read in "FYI" data about files produced by CatGT.
+# Pipeline TODO: receive these file paths from the previous step,
+# instead of magically "just knowing" them.
+fyi_file = Path(products_path, 'catgt_rec_g3', 'rec_g3_fyi.txt')
+fyi = read_key_value_pairs(fyi_file)
+
+# This "dry_run" flag is specific to our tprime Python wrapper here.
+# It's useful for testing argument and file parsing without having to run
+# TPrime.
+dry_run = False
+
+# Set the stage -- compare sync pulse edge times for ni, imec0, and imec1.
+ni_edges = np.array(read_floats(fyi['sync_ni']))
+imec0_edges = np.array(read_floats(fyi['sync_imec0']))
+imec1_edges = np.array(read_floats(fyi['sync_imec1']))
+
+end_time = imec0_edges[-1] + 1
+
+fig, (ax1, ax2) = plt.subplots(2, 1)
+ax1.plot(imec0_edges, imec1_edges - imec0_edges, 'b.', label='imec 1')
+ax1.plot(imec0_edges, imec0_edges - imec0_edges, 'r.', label='imec 0')
+ax1.plot(imec0_edges, ni_edges - imec0_edges, 'k.', label='ni')
+ax1.legend()
+ax1.grid(axis='both')
+ax1.set_xlabel('imec 0 time (s)')
+ax1.set_xlim(0, end_time)
+ax1.set_ylabel('drift (s)')
+ax1.set_title('clock drift as seen by imec 0\nsync edge time - imec 0 sync edge time')
+
+# Align ni aux analog events with respect to imec probe 0.
+from_streams = [(fyi['sync_ni'], fyi['times_ni_0'], None)]
+info = tprime(fyi['sync_imec0'], from_streams, sync_period=1.0, dry_run=dry_run)
+ni_events = np.array(read_floats(fyi['times_ni_0']))
+aligned_events = np.array(read_floats(info['from_streams'][0][2]))
+
+ax2.plot(aligned_events, aligned_events - ni_events, 'k*')
+ax2.grid(axis='both')
+ax2.set_xlabel('imec 0 time (s)')
+ax2.set_xlim(0, end_time)
+ax2.set_ylim(ax1.get_ylim())
+ax2.set_ylabel('correction (s)')
+ax2.set_title('ni aux event times corrected by TPrime\ncorrected time wrt imec 0 - raw time wrt ni')
+
+plt.show()

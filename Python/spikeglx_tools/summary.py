@@ -18,6 +18,7 @@ from matplotlib import cm
 
 from . import datafile
 from . import datafile_ben
+from .cli_wrappers import read_floats
 
 def plot_recording_summary(rec_dir, start_time=0, duration=30, bin_glob='**/*.bin'):
 
@@ -47,8 +48,7 @@ def plot_recording_summary(rec_dir, start_time=0, duration=30, bin_glob='**/*.bi
         event_files = rec_path.rglob(event_glob)
         for index, event_file in enumerate(event_files):
             print(f'Found event file: {event_file}')
-            with open(event_file) as f:
-                event_times = [float(line.strip()) for line in f if not line.isspace()]
+            event_times = read_floats(event_file)
             line_style = event_line_styles[index % len(event_line_styles)]
             ax1.vlines(event_times, 0, 5, colors = [plot_colors[bin_file]], linestyles=[line_style])
 

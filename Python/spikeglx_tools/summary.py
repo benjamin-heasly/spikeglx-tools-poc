@@ -23,7 +23,8 @@ def plot_recording_summary(rec_dir, start_time=0, duration=30, bin_glob='**/*.bi
 
     print(f'Searching for .bin files matching "{bin_glob}" in {rec_dir}')
 
-    bin_files = list(Path(rec_dir).rglob(bin_glob))
+    rec_path = Path(rec_dir)
+    bin_files = list(rec_path.rglob(bin_glob))
     bin_files.sort(key=lambda path: path.name)
     file_count = len(bin_files)
 
@@ -37,9 +38,19 @@ def plot_recording_summary(rec_dir, start_time=0, duration=30, bin_glob='**/*.bi
     fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1)
     color_map = cm.get_cmap('plasma', file_count)
     plot_colors = dict(zip(bin_files, color_map.colors))
+    event_line_styles = ['dotted', 'dashdot', 'dashed']
 
     end_time = start_time
     for bin_file in bin_files:
+
+        event_glob = f'{bin_file.stem}*.txt'
+        event_files = rec_path.rglob(event_glob)
+        for index, event_file in enumerate(event_files):
+            print(f'Found event file: {event_file}')
+            with open(event_file) as f:
+                event_times = [float(line.strip()) for line in f if not line.isspace()]
+            line_style = event_line_styles[index % len(event_line_styles)]
+            ax1.vlines(event_times, 0, 5, colors = [plot_colors[bin_file]], linestyles=[line_style])
 
         print(f'\nReading .meta and .bin for {bin_file.name}')
 

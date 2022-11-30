@@ -16,7 +16,7 @@ g = '3';
 t = '0';
 which_streams = '-ni -ap -lf'
 products_path = Path(data_path, 'products')
-dry_run = False
+dry_run = True
 
 options = '-xa=0,0,0,2.0,4.0,6,5';
 options = options + ' -pass1_force_ni_ob_bin'
